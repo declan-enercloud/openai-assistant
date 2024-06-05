@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from "react";
 import styles from "./chat.module.css";
 import { AssistantStream } from "openai/lib/AssistantStream";
 import Markdown from "react-markdown";
+import remarkGfm from 'remark-gfm';
 // @ts-expect-error - no types for this yet
 import { AssistantStreamEvent } from "openai/resources/beta/assistants/assistants";
 import { RequiredActionFunctionToolCall } from "openai/resources/beta/threads/runs/runs";
@@ -17,10 +18,25 @@ const UserMessage = ({ text }: { text: string }) => {
   return <div className={styles.userMessage}>{text}</div>;
 };
 
+const LinkRenderer = (props) => {
+  return (
+    <a href={props.href} target="_blank" rel="noopener noreferrer">
+      {props.children}
+    </a>
+  );
+};
+
 const AssistantMessage = ({ text }: { text: string }) => {
   return (
     <div className={styles.assistantMessage}>
-      <Markdown>{text}</Markdown>
+      <Markdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          a: LinkRenderer,
+        }}
+      >
+        {text}
+      </Markdown>
     </div>
   );
 };
@@ -198,7 +214,7 @@ const Chat = ({
 
     // code interpreter
     stream.on("toolCallCreated", toolCallCreated);
-    stream.on("toolCallDelta", toolCallDelta);
+    stream.on("toolCallDelta", handleTextDelta);
 
     // events without helpers yet (e.g. requires_action and run.done)
     stream.on("event", (event) => {
@@ -229,24 +245,28 @@ const Chat = ({
     setMessages((prevMessages) => [...prevMessages, { role, text }]);
   };
 
-  const annotateLastMessage = (annotations) => {
-    setMessages((prevMessages) => {
-      const lastMessage = prevMessages[prevMessages.length - 1];
-      const updatedLastMessage = {
-        ...lastMessage,
-      };
-      annotations.forEach((annotation) => {
-        if (annotation.type === 'file_path') {
-          updatedLastMessage.text = updatedLastMessage.text.replaceAll(
-            annotation.text,
-            `/api/files/${annotation.file_path.file_id}`
-          );
-        }
-      })
-      return [...prevMessages.slice(0, -1), updatedLastMessage];
+const annotateLastMessage = (annotations) => {
+  setMessages((prevMessages) => {
+    const lastMessage = prevMessages[prevMessages.length - 1];
+    const updatedLastMessage = {
+      ...lastMessage,
+    };
+    annotations.forEach((annotation) => {
+      if (annotation.type === 'file_path') {
+        updatedLastMessage.text = updatedLastMessage.text.replaceAll(
+          annotation.text,
+          ` [Open PDF](pdfs/${annotation.file_path.file_id}.pdf)`
+        );
+      } else if (annotation.type === 'file_citation') {
+        updatedLastMessage.text = updatedLastMessage.text.replaceAll(
+          annotation.text,
+          ` [Open PDF](pdfs/${annotation.file_citation.file_id}.pdf)`
+        );
+      }
     });
-    
-  }
+    return [...prevMessages.slice(0, -1), updatedLastMessage];
+  });
+};
 
   return (
     <div className={styles.chatContainer}>
