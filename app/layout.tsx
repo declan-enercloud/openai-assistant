@@ -16,6 +16,7 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <body className={inter.className}>
+        <h2 className={inter.className}>⠀⠀{process.env.NEXT_PUBLIC_TITLE}</h2>
         {assistantId ? children : <Warnings />}
         <img className="logo" src="/ec.jpg" alt="OpenAI Logo" />
       </body>
